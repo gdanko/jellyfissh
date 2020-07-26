@@ -1,0 +1,217 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Data::Dumper;
+use Getopt::Long;
+
+# per-entry fields
+my $homedir = $ENV{HOME};
+my $username = getpwuid($<);
+my $hostname;
+my $title;
+my $group;
+my $protocol = "SSH 2";
+my $algorithm = "3des";
+my $port = 22;
+my $width = 150;
+my $height = 50;
+my $shell = "/bin/bash";
+my $encoding = "Unicode (UTF-8)";
+my $declare_as = "xterm-color";
+
+# Command line options
+my ($opt_h, $opt_i, $opt_o, $opt_u);
+
+my @groups;
+
+GetOptions(
+	"help|h" => \$opt_h,
+	"infile|i=s" => \$opt_i,
+	"outdir|o=s" => \$opt_o,
+	"username|u=s" => \$opt_u,
+);
+
+do_help() if $opt_h;
+
+my $infile = $opt_i || sprintf("%s/%s", $homedir, "hosts.csv");
+my $outdir = $opt_o || $homedir;
+my $bookmark_file = sprintf("%s/%s", $outdir, "JellyfiSSH_Bookmarks.xml");
+my $group_file = sprintf("%s/%s", $outdir, "jellyfiSSHr1_groups.xml");
+
+# Open the infile for reading
+open INFILE, $infile or error_exit("Could not open $infile for reading.");
+
+# Open the host file for writing
+open BOOKMARKFILE, ">$bookmark_file" or die ("Could not open $bookmark_file for writing\n");
+
+# Open the group file for writing
+open GROUPFILE, ">$group_file" or die ("Could not open $group_file for writing\n");;
+
+# Print the hostfile header
+print BOOKMARKFILE "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+print BOOKMARKFILE "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
+print BOOKMARKFILE "<plist version=\"1.0\">\n";
+print BOOKMARKFILE "<array>\n";
+
+# Print the groupfile header
+print GROUPFILE "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+print GROUPFILE "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
+print GROUPFILE "<plist version=\"1.0\">\n";
+print GROUPFILE "<array>\n";
+
+# Populate the host entries
+my @lines = <INFILE>;
+my $counter = 0;
+foreach (@lines) {
+	next if $_ =~ /^#/;
+	my $host_entry = $_;
+	chomp($host_entry);
+	my @host_data = split(/,/, $host_entry);
+	if (scalar(@host_data) == 7) {
+		$hostname = lc($host_data[0]);
+		$title = lc($host_data[1]) || lc($host_data[0]);
+		$protocol = $host_data[2] || "ssh2";
+		$algorithm = $host_data[4] || "3des";
+		$group = $host_data[5] || "Main";
+
+		if ($opt_u) {
+			$username = lc($opt_u);
+		} elsif ($host_data[6]) {
+			$username = lc($host_data[6]);
+		} else {
+			$username = lc(getpwuid($<));
+		}
+
+		if ($protocol eq "ssh1") {
+			$protocol = "SSH 1";
+			$port = $host_data[3] || 22;
+
+		} elsif ($protocol eq "ssh2") {
+			$protocol = "SSH 2";
+			$port = $host_data[3] || 22
+
+		} elsif ($protocol eq "telnet") {
+			$port = $host_data[3] || 23;
+
+		} elsif ($protocol eq "ftp") {
+			$port = $host_data[3] || 21;
+
+		} elsif ($protocol eq "sftp") {
+			$port = $host_data[3] || 22;
+
+		} else {
+			$protocol = "SSH 2";
+			$port = $host_data[3] || 22;
+		}
+
+		push (@groups, $group) unless grep (/^$group$/, @groups);
+
+		print BOOKMARKFILE "	<array>\n";
+		print BOOKMARKFILE "		<string>$title</string>\n";				# connection settings > bookmark title
+		print BOOKMARKFILE "		<string>$hostname</string>\n";			# connection settings > host or IP
+		print BOOKMARKFILE "		<string>$username</string>\n";			# connection settings > login name
+		print BOOKMARKFILE "		<string>$protocol</string>\n";			# connection settings > connection type: protocol
+		print BOOKMARKFILE "		<string>3des</string>\n";				# connection settings > connection type: algorithm
+		print BOOKMARKFILE "		<string>$width</string>\n";				# terminal settings > width
+		print BOOKMARKFILE "		<string>$height</string>\n";			# terminal settings > height
+		print BOOKMARKFILE "		<string>1</string>\n";					# terminal settings > transparancy (1 is full, 0 is transparent)
+		print BOOKMARKFILE "		<string>0</string>\n";					# terminal settings > text colour
+		print BOOKMARKFILE "		<string>0</string>\n";					# terminal settings > text colour
+		print BOOKMARKFILE "		<string>0</string>\n";					# terminal settings > text colour
+		print BOOKMARKFILE "		<string>1</string>\n";					# terminal settings > background
+		print BOOKMARKFILE "		<string>1</string>\n";					# terminal settings > background
+		print BOOKMARKFILE "		<string>1</string>\n";					# terminal settings > background
+		print BOOKMARKFILE "		<string>0</string>\n";
+		print BOOKMARKFILE "		<string>$port</string>\n";				# connection settings > port
+		print BOOKMARKFILE "		<string>Monaco</string>\n";				# terminal settings > font name
+		print BOOKMARKFILE "		<string>10</string>\n";					# terminal settings > font size
+		print BOOKMARKFILE "		<string>/bin/bash</string>\n";			# terminal settings > shell
+		print BOOKMARKFILE "		<string></string>\n";					# ssh options > custom options
+		print BOOKMARKFILE "		<string></string>\n";
+		print BOOKMARKFILE "		<string></string>\n";
+		print BOOKMARKFILE "		<string>0</string>\n";
+		print BOOKMARKFILE "		<string></string>\n";					# option as meta key
+		print BOOKMARKFILE "		<string></string>\n";					# background image
+		print BOOKMARKFILE "		<string>0</string>\n";					# anti-aliased text
+		print BOOKMARKFILE "		<string>Unicode (UTF-8)</string>\n";	# encoding
+		print BOOKMARKFILE "		<string>1</string>\n";					# delete sends backspace
+		print BOOKMARKFILE "		<string>$group</string>\n";				# connection settings > member of group
+		print BOOKMARKFILE "		<string>0</string>\n";					# ssh options > ssh tunnels > interactive tunnel
+		print BOOKMARKFILE "		<array/>\n";
+#		print BOOKMARKFILE "		<array>\n";								# ssh options > begin ssh tunnels
+#		print BOOKMARKFILE "			<array>\n";							# ssh options > ssh begin tunnel entry
+#		print BOOKMARKFILE "				<string></string>\n";			# ssh options > ssh tunnel entry > name
+#		print BOOKMARKFILE "				<string></string>\n";			# ssh options > ssh tunnel entry > remote port
+#		print BOOKMARKFILE "				<string></string>\n";			# ssh options > ssh tunnel entry > remote host
+#		print BOOKMARKFILE "				<string></string>\n";			# ssh options > ssh tunnel entry > local port
+#		print BOOKMARKFILE "			</array>\n";						# ssh options > end ssh tunnel entry
+#		print BOOKMARKFILE "		</array>\n";							# ssh options > end ssh tunnels
+		print BOOKMARKFILE "		<string>0</string>\n";					# ssh options > ssh tunnels > add sudo
+		print BOOKMARKFILE "		<string></string>\n";					# ssh options > remote command
+		print BOOKMARKFILE "		<string>$declare_as</string>\n";		# terminal settings > declare as
+		print BOOKMARKFILE "		<string>$counter</string>\n";			# record #
+		print BOOKMARKFILE "	</array>\n";
+		$counter++;
+	} else {
+		printf ("The entry %s is an invalid format and cannot be processed.\n", $host_entry);
+	}
+}
+
+# Populate the group entries
+@groups = sort(@groups);
+foreach (@groups) {
+	$group = $_;
+	chomp $group;
+	print GROUPFILE "        <string>$group</string>\n";
+}
+
+# Print the hostfile footer
+print BOOKMARKFILE "</array>\n";
+print BOOKMARKFILE "</plist>\n";
+
+# Print the groupfile footer
+print GROUPFILE "</array>\n";
+print GROUPFILE "</plist>\n";
+
+# Close the file handles
+close (INFILE);
+close (BOOKMARKFILE);
+close (GROUPFILE);
+
+#print "Done! There should be two XML files on your Desktop. Copy them to ~/Library/Preferences/JellyfiSSH and launch JellyfiSSH.\n";
+printf("Done! Please copy %s/%s and %s/%s to %s/Library/Application Support/JellyfiSSH and launch JellyfiSSH.\n",
+	$outdir,
+	$bookmark_file,
+	$outdir,
+	$group_file,
+	$homedir
+);
+
+sub error_exit {
+	my $text = shift;
+	print "[Error] $text\n";
+	exit (255);
+}
+
+sub do_help {
+print <<EOF
+JellyfiSSH bookmark generator
+Usage: jellyfissh [--username <string>] [--infile <filename>] [--outdir <dirname>]
+
+Options:
+  --help, -h
+    Display this help screen.
+  --infile, -i
+    Specify the input file to use for creating the bookmarks file. Default: ~/hosts.csv.
+  --outdir, -o
+    Specify the output directory for your XML files. Default is invoking user's home directory.
+  --username, -u
+    Specify a username to use for all connections. This will override the username specified in the input file.
+
+Example: jellyfissh -i /tmp/hosts.csv -o /User/gdanko -u gdanko-admin
+Submit any questions regarding this utility to gdanko\@gmail.com
+EOF
+;
+exit;
+}

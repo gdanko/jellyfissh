@@ -1,0 +1,4 @@
+# hostname,title,protocol,port,ssh algorithm,group,username
+pppdc9prd27f.corp.intuit.net,chef server,ssh2,,3des,Main,gdanko
+pppdc9prd28b.corp.intuit.net,chef node,ssh2,,3des,Main,gdanko
+192.168.248.130,dolemite,ssh2,,3des,fusion VMs,gdanko
